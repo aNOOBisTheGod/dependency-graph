@@ -70,6 +70,12 @@ def parse_arguments():
         help='Output dependencies as ASCII tree'
     )
     
+    parser.add_argument(
+        '--reverse',
+        action='store_true',
+        help='Show reverse dependencies'
+    )
+    
     return parser.parse_args()
 
 
@@ -229,6 +235,33 @@ def build_dependency_graph_recursive(package_name, version, repo_url, test_mode,
     return graph
 
 
+def find_reverse_dependencies(target_package, repo_url, test_mode, test_repo):
+    all_packages = []
+    
+    if test_mode:
+        all_packages = list(test_repo.keys())
+    else:
+        content = fetch_apkindex(repo_url)
+        packages = parse_apkindex(content)
+        all_packages = [pkg['name'] for pkg in packages]
+    
+    reverse_deps = {}
+    
+    for package in all_packages:
+        graph = build_dependency_graph_recursive(
+            package,
+            'latest',
+            repo_url,
+            test_mode,
+            test_repo
+        )
+        
+        if target_package in graph and target_package != package:
+            reverse_deps[package] = graph.get(package, [])
+    
+    return reverse_deps
+
+
 def print_config(args):
     print("Configuration parameters:")
     print(f"package: {args.package}")
@@ -253,20 +286,36 @@ def main():
         if args.test_mode:
             test_repo = load_test_repo(args.repo)
         
-        graph = build_dependency_graph_recursive(
-            args.package,
-            args.version,
-            args.repo,
-            args.test_mode,
-            test_repo
-        )
-        
-        print(f"\nDependency graph for {args.package}:")
-        for package, deps in graph.items():
-            if deps:
-                print(f"{package}: {', '.join(deps)}")
+        if args.reverse:
+            reverse_deps = find_reverse_dependencies(
+                args.package,
+                args.repo,
+                args.test_mode,
+                test_repo
+            )
+            
+            print(f"\nReverse dependencies for {args.package}:")
+            print(f"Packages that depend on {args.package}:")
+            if reverse_deps:
+                for package in sorted(reverse_deps.keys()):
+                    print(f"  - {package}")
             else:
-                print(f"{package}: (no dependencies)")
+                print("  No packages depend on this package")
+        else:
+            graph = build_dependency_graph_recursive(
+                args.package,
+                args.version,
+                args.repo,
+                args.test_mode,
+                test_repo
+            )
+            
+            print(f"\nDependency graph for {args.package}:")
+            for package, deps in graph.items():
+                if deps:
+                    print(f"{package}: {', '.join(deps)}")
+                else:
+                    print(f"{package}: (no dependencies)")
         
         return 0
         
