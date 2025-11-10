@@ -42,6 +42,9 @@ python3 dependency_graph.py --package git --repo https://dl-cdn.alpinelinux.org/
 Этап 5 - D2 диаграмма curl
 python3 dependency_graph.py --package curl --repo https://dl-cdn.alpinelinux.org/alpine/v3.19/main
 
+Этап 5 - ASCII дерево gnupg (большой граф)
+python3 dependency_graph.py --package gnupg --repo https://dl-cdn.alpinelinux.org/alpine/v3.19/main --ascii-tree
+
 Этап 5 - ASCII дерево с циклами
 python3 dependency_graph.py --package A --repo test_repo_cycles.txt --test-mode --ascii-tree
 
