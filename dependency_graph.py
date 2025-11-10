@@ -3,6 +3,12 @@
 import argparse
 import sys
 import os
+import urllib.request
+import tarfile
+import gzip
+import tempfile
+import ssl
+from io import BytesIO
 
 
 def validate_package_name(name):
@@ -66,6 +72,82 @@ def parse_arguments():
     return parser.parse_args()
 
 
+def fetch_apkindex(repo_url):
+    index_url = f"{repo_url.rstrip('/')}/x86_64/APKINDEX.tar.gz"
+    
+    try:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        
+        with urllib.request.urlopen(index_url, timeout=30, context=ctx) as response:
+            data = response.read()
+        
+        with tarfile.open(fileobj=BytesIO(data), mode='r:gz') as tar:
+            apkindex_member = tar.getmember('APKINDEX')
+            apkindex_file = tar.extractfile(apkindex_member)
+            content = apkindex_file.read().decode('utf-8')
+            
+        return content
+    except Exception as e:
+        raise Exception(f"Failed to fetch APKINDEX: {e}")
+
+
+def parse_apkindex(content):
+    packages = []
+    current_package = {}
+    
+    for line in content.split('\n'):
+        line = line.strip()
+        
+        if not line:
+            if current_package:
+                packages.append(current_package)
+                current_package = {}
+            continue
+        
+        if ':' in line:
+            key, value = line.split(':', 1)
+            value = value.strip()
+            
+            if key == 'P':
+                current_package['name'] = value
+            elif key == 'V':
+                current_package['version'] = value
+            elif key == 'D':
+                deps = []
+                for dep in value.split():
+                    dep_name = dep.split('=')[0].split('<')[0].split('>')[0]
+                    if dep_name:
+                        deps.append(dep_name)
+                current_package['dependencies'] = deps
+    
+    if current_package:
+        packages.append(current_package)
+    
+    return packages
+
+
+def find_package(packages, name, version):
+    for pkg in packages:
+        if pkg.get('name') == name:
+            if version == 'latest' or pkg.get('version') == version:
+                return pkg
+    return None
+
+
+def get_dependencies(package_name, version, repo_url):
+    content = fetch_apkindex(repo_url)
+    packages = parse_apkindex(content)
+    
+    package = find_package(packages, package_name, version)
+    
+    if not package:
+        raise Exception(f"Package {package_name} version {version} not found")
+    
+    return package.get('dependencies', [])
+
+
 def print_config(args):
     print("Configuration parameters:")
     print(f"package: {args.package}")
@@ -86,7 +168,15 @@ def main():
         if args.test_mode and not os.path.exists(args.repo):
             raise FileNotFoundError(f"Test repository file not found: {args.repo}")
         
-        print_config(args)
+        if not args.test_mode:
+            dependencies = get_dependencies(args.package, args.version, args.repo)
+            
+            print(f"\nDirect dependencies for {args.package}:")
+            if dependencies:
+                for dep in dependencies:
+                    print(f"  - {dep}")
+            else:
+                print("  No dependencies")
         
         return 0
         
