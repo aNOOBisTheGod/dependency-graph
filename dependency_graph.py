@@ -9,6 +9,7 @@ import gzip
 import tempfile
 import ssl
 from io import BytesIO
+from collections import deque
 
 
 def validate_package_name(name):
@@ -148,6 +149,86 @@ def get_dependencies(package_name, version, repo_url):
     return package.get('dependencies', [])
 
 
+def load_test_repo(file_path):
+    repo = {}
+    
+    with open(file_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            
+            parts = line.split(':')
+            if len(parts) >= 2:
+                package = parts[0].strip()
+                deps = [d.strip() for d in parts[1].split(',') if d.strip()]
+                repo[package] = deps
+    
+    return repo
+
+
+def get_test_dependencies(package_name, test_repo):
+    return test_repo.get(package_name, [])
+
+
+def build_dependency_graph_bfs(package_name, version, repo_url, test_mode, test_repo):
+    graph = {}
+    visited = set()
+    queue = deque([package_name])
+    
+    while queue:
+        current = queue.popleft()
+        
+        if current in visited:
+            continue
+        
+        visited.add(current)
+        
+        if test_mode:
+            deps = get_test_dependencies(current, test_repo)
+        else:
+            try:
+                deps = get_dependencies(current, version, repo_url)
+            except:
+                deps = []
+        
+        graph[current] = deps
+        
+        for dep in deps:
+            if dep not in visited:
+                queue.append(dep)
+    
+    return graph
+
+
+def build_dependency_graph_recursive(package_name, version, repo_url, test_mode, test_repo, graph=None, visited=None):
+    if graph is None:
+        graph = {}
+    if visited is None:
+        visited = set()
+    
+    if package_name in visited:
+        return graph
+    
+    visited.add(package_name)
+    
+    if test_mode:
+        deps = get_test_dependencies(package_name, test_repo)
+    else:
+        try:
+            deps = get_dependencies(package_name, version, repo_url)
+        except:
+            deps = []
+    
+    graph[package_name] = deps
+    
+    for dep in deps:
+        if dep not in visited:
+            build_dependency_graph_recursive(dep, version, repo_url, test_mode, test_repo, graph, visited)
+    
+    return graph
+
+
 def print_config(args):
     print("Configuration parameters:")
     print(f"package: {args.package}")
@@ -168,15 +249,24 @@ def main():
         if args.test_mode and not os.path.exists(args.repo):
             raise FileNotFoundError(f"Test repository file not found: {args.repo}")
         
-        if not args.test_mode:
-            dependencies = get_dependencies(args.package, args.version, args.repo)
-            
-            print(f"\nDirect dependencies for {args.package}:")
-            if dependencies:
-                for dep in dependencies:
-                    print(f"  - {dep}")
+        test_repo = None
+        if args.test_mode:
+            test_repo = load_test_repo(args.repo)
+        
+        graph = build_dependency_graph_recursive(
+            args.package,
+            args.version,
+            args.repo,
+            args.test_mode,
+            test_repo
+        )
+        
+        print(f"\nDependency graph for {args.package}:")
+        for package, deps in graph.items():
+            if deps:
+                print(f"{package}: {', '.join(deps)}")
             else:
-                print("  No dependencies")
+                print(f"{package}: (no dependencies)")
         
         return 0
         
