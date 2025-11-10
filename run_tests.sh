@@ -1,6 +1,6 @@
 #!/bin/bash
 
-Этап 1 - Запуск с параметрами
+Этап 1 - Запуск с параметрами версии
 python3 dependency_graph.py --package python3 --repo https://dl-cdn.alpinelinux.org/alpine/v3.19/main --version 3.11.6-r0
 
 Этап 1 - Тест ошибки пустого имени
