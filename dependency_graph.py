@@ -235,6 +235,40 @@ def build_dependency_graph_recursive(package_name, version, repo_url, test_mode,
     return graph
 
 
+def generate_d2_diagram(graph, package_name):
+    lines = []
+    lines.append(f"# Dependency graph for {package_name}")
+    lines.append("")
+    
+    for package, deps in graph.items():
+        if deps:
+            for dep in deps:
+                lines.append(f"{package} -> {dep}")
+        else:
+            lines.append(f"{package}")
+    
+    return "\n".join(lines)
+
+
+def print_ascii_tree(graph, root, prefix="", is_last=True, visited=None):
+    if visited is None:
+        visited = set()
+    
+    if root in visited:
+        print(f"{prefix}{'└── ' if is_last else '├── '}{root} (circular)")
+        return
+    
+    visited.add(root)
+    
+    print(f"{prefix}{'└── ' if is_last else '├── '}{root}")
+    
+    deps = graph.get(root, [])
+    for i, dep in enumerate(deps):
+        is_last_dep = i == len(deps) - 1
+        new_prefix = prefix + ("    " if is_last else "│   ")
+        print_ascii_tree(graph, dep, new_prefix, is_last_dep, visited.copy())
+
+
 def find_reverse_dependencies(target_package, repo_url, test_mode, test_repo):
     all_packages = []
     
@@ -310,12 +344,13 @@ def main():
                 test_repo
             )
             
-            print(f"\nDependency graph for {args.package}:")
-            for package, deps in graph.items():
-                if deps:
-                    print(f"{package}: {', '.join(deps)}")
-                else:
-                    print(f"{package}: (no dependencies)")
+            if args.ascii_tree:
+                print(f"\nASCII tree for {args.package}:")
+                print_ascii_tree(graph, args.package)
+            else:
+                d2_diagram = generate_d2_diagram(graph, args.package)
+                print(f"\nD2 diagram for {args.package}:")
+                print(d2_diagram)
         
         return 0
         
