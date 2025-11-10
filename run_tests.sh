@@ -51,3 +51,12 @@ python3 dependency_graph.py --package A --repo test_repo_cycles.txt --test-mode 
 Этап 5 - ASCII дерево сложный граф
 python3 dependency_graph.py --package A --repo test_repo_complex.txt --test-mode --ascii-tree
 
+Этап 5 - Генерация SVG для busybox
+python3 dependency_graph.py --package busybox --repo https://dl-cdn.alpinelinux.org/alpine/v3.19/main | grep -v "^D2 diagram" > busybox.d2 && d2 busybox.d2 busybox.svg
+
+Этап 5 - Генерация SVG для curl
+python3 dependency_graph.py --package curl --repo https://dl-cdn.alpinelinux.org/alpine/v3.19/main | grep -v "^D2 diagram" > curl.d2 && d2 curl.d2 curl.svg
+
+Этап 5 - Генерация SVG для тестового графа
+python3 dependency_graph.py --package A --repo test_repo_complex.txt --test-mode | grep -v "^D2 diagram" > test_graph.d2 && d2 test_graph.d2 test_graph.svg
+

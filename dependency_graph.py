@@ -235,17 +235,23 @@ def build_dependency_graph_recursive(package_name, version, repo_url, test_mode,
     return graph
 
 
+def escape_d2_name(name):
+    if any(c in name for c in [':', '.', '/', '-', '~', ' ']):
+        return f'"{name}"'
+    return name
+
+
 def generate_d2_diagram(graph, package_name):
     lines = []
-    lines.append(f"# Dependency graph for {package_name}")
-    lines.append("")
     
     for package, deps in graph.items():
+        pkg_name = escape_d2_name(package)
         if deps:
             for dep in deps:
-                lines.append(f"{package} -> {dep}")
+                dep_name = escape_d2_name(dep)
+                lines.append(f"{pkg_name} -> {dep_name}")
         else:
-            lines.append(f"{package}")
+            lines.append(f"{pkg_name}")
     
     return "\n".join(lines)
 
